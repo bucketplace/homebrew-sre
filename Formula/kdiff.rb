@@ -1,6 +1,7 @@
 class Kdiff < Formula
   desc "Kubernetes diff tool for comparing deployments and configurations"
   homepage "https://github.com/bucketplace/sre"
+  url "file:///dev/null"  # dummy url
   version "0.0.1"
   
   def install
@@ -18,7 +19,6 @@ class Kdiff < Formula
     
     
     system "tar", "-xzf", "sre.tar.gz", "--strip-components=1"
-    
     
     cd "utils/kdiff" do
       system "echo '#!/bin/bash' > kdiff_standalone"
