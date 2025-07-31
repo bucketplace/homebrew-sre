@@ -5,55 +5,96 @@ class Kdiff < Formula
   version "0.0.1"
   
   def install
-    github_token = ENV["GITHUB_TOKEN"]
-    
-    if github_token.nil? || github_token.empty?
-      begin
-        github_token = `gh auth token`.strip
-        if $?.exitstatus != 0 || github_token.empty?
-          github_token = nil
-        end
-      rescue
-        github_token = nil
-      end
-    end
-    
-    if github_token.nil? || github_token.empty?
-      begin
-        gh_config = `gh auth status 2>&1`
-        if gh_config.include?("Logged in to github.com")
-          github_token = "use_gh_cli"
-        end
-      rescue
-      end
-    end
+    github_token = find_github_token
     
     if github_token.nil? || github_token.empty?
       odie <<~EOS
-        GitHub token required for private repository access.
+        GitHub authentication required for private repository access.
         
-        Please try one of these methods:
-        1. Set environment variable: export GITHUB_TOKEN=your_token
-        2. Login with gh CLI: gh auth login
-        3. Create personal access token at: https://github.com/settings/tokens
+        Please authenticate using one of these methods:
+        1. gh auth login
+        2. git config --global github.token YOUR_TOKEN  
+        3. export GITHUB_TOKEN=YOUR_TOKEN
+        
+        Create token at: https://github.com/settings/tokens (with 'repo' scope)
       EOS
     end
     
-    if github_token == "use_gh_cli"
-      system "gh", "api", "/repos/bucketplace/sre/tarball/v#{version}", 
-             "--jq", ".", "> sre.tar.gz"
-    else
-      system "curl", "-L", "-H", "Authorization: token #{github_token}",
-             "https://api.github.com/repos/bucketplace/sre/tarball/v#{version}",
-             "-o", "sre.tar.gz"
+    ENV["HOMEBREW_GITHUB_API_TOKEN"] = github_token
+    
+    puts "🔍 Downloading from private repository using auto-detected token..."
+    
+    download_and_extract_repo(github_token)
+    
+    puts "✅ Building kdiff..."
+    build_kdiff
+    puts "🎉 kdiff installed successfully!"
+  end
+  
+  private
+  
+  def find_github_token
+    token = ENV["GITHUB_TOKEN"] || ENV["HOMEBREW_GITHUB_API_TOKEN"]
+    return token unless token.nil? || token.empty?
+    
+    begin
+      token = `gh auth token 2>/dev/null`.strip
+      return token if $?.exitstatus == 0 && !token.empty?
+    rescue
     end
     
-    unless File.exist?("sre.tar.gz") && File.size("sre.tar.gz") > 0
-      odie "Failed to download repository. Check your GitHub access permissions."
+    gh_config_path = File.expand_path("~/.config/gh/hosts.yml")
+    if File.exist?(gh_config_path)
+      begin
+        require 'yaml'
+        gh_config = YAML.load_file(gh_config_path)
+        token = gh_config.dig("github.com", "oauth_token")
+        return token unless token.nil? || token.empty?
+      rescue
+      end
+    end
+    
+    begin
+      token = `git config --get github.token 2>/dev/null`.strip
+      return token unless token.empty?
+    rescue
+    end
+    
+    begin
+      cred_output = `printf "protocol=https\nhost=github.com\n\n" | git credential fill 2>/dev/null`
+      if match = cred_output.match(/password=(.+)/)
+        token = match[1].strip
+        return token unless token.empty?
+      end
+    rescue
+    end
+    
+    nil
+  end
+  
+  def download_and_extract_repo(token)
+    if system("which gh > /dev/null 2>&1")
+      success = system("gh", "api", "/repos/bucketplace/sre/tarball/v#{version}",
+                      "--jq", ".", "-o", "sre.tar.gz")
+      
+      if success && File.exist?("sre.tar.gz") && File.size("sre.tar.gz") > 0
+        system "tar", "-xzf", "sre.tar.gz", "--strip-components=1"
+        return
+      end
+    end
+    
+    success = system("curl", "-L", "-H", "Authorization: token #{token}",
+                    "https://api.github.com/repos/bucketplace/sre/tarball/v#{version}",
+                    "-o", "sre.tar.gz", "-f", "-s")
+    
+    unless success && File.exist?("sre.tar.gz") && File.size("sre.tar.gz") > 0
+      odie "❌ Failed to download repository. Check your GitHub access permissions."
     end
     
     system "tar", "-xzf", "sre.tar.gz", "--strip-components=1"
-    
+  end
+  
+  def build_kdiff
     cd "utils/kdiff" do
       system "echo '#!/bin/bash' > kdiff_standalone"
       system "echo '' >> kdiff_standalone"
