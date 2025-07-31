@@ -5,44 +5,23 @@ class Kdiff < Formula
   version "0.0.1"
   
   def install
-    github_token = ENV["GITHUB_TOKEN"] || ENV["HOMEBREW_GITHUB_API_TOKEN"]
-    
-    if github_token.nil? || github_token.empty?
-      puts <<~EOS
-        
-        ⚠️  GitHub token required for private repository access.
-        
-        Run this command with your token:
-        
-        GITHUB_TOKEN=ghp_xxxxxxxxxxxx brew install kdiff
-        
-        Get your token from: https://github.com/settings/tokens
-        (Make sure to select 'repo' scope for private repository access)
-        
-      EOS
-      exit 1
+    unless system("which gh >/dev/null 2>&1")
+      odie "GitHub CLI (gh) is required. Install it with: brew install gh"
     end
     
-    puts "🔍 Downloading private repository..."
-    
-    success = system("curl", "-L", 
-                     "-H", "Authorization: token #{github_token}",
-                     "-H", "Accept: application/vnd.github.v3+json",
-                     "https://api.github.com/repos/bucketplace/sre/tarball/v#{version}",
-                     "-o", "sre.tar.gz",
-                     "--fail", "--silent", "--show-error")
-    
-    unless success
-      puts "❌ Download failed. Please check:"
-      puts "  • Token has 'repo' scope"  
-      puts "  • You have access to bucketplace/sre"
-      puts "  • Token is valid: #{github_token[0..7]}..."
-      exit 1
+    unless system("gh auth status >/dev/null 2>&1")
+      odie "Please login to GitHub CLI first: gh auth login"
     end
     
-    unless File.exist?("sre.tar.gz") && File.size("sre.tar.gz") > 0
-      puts "❌ Download file is empty or missing"
-      exit 1
+    puts "🔍 Downloading via GitHub CLI..."
+    
+    success = system("gh", "api", "/repos/bucketplace/sre/tarball/v#{version}",
+                     "-H", "Accept: application/vnd.github+json",
+                     "--jq", ".",
+                     "-o", "sre.tar.gz")
+    
+    unless success && File.exist?("sre.tar.gz") && File.size("sre.tar.gz") > 0
+      odie "❌ Failed to download. Check access to bucketplace/sre repository"
     end
     
     puts "✅ Download successful"
@@ -72,11 +51,17 @@ class Kdiff < Formula
       end
       
       system "chmod", "+x", "kdiff_standalone"
-      
       bin.install "kdiff_standalone" => "kdiff"
     end
     
     puts "🎉 kdiff installed successfully!"
+  end
+  
+  def caveats
+    <<~EOS
+      This formula requires GitHub CLI (gh) authentication.
+      If not already done, please run: gh auth login
+    EOS
   end
   
   test do
