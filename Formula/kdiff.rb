@@ -20,10 +20,7 @@ class Kdiff < Formula
       EOS
     end
     
-    ENV["HOMEBREW_GITHUB_API_TOKEN"] = github_token
-    
-    puts "🔍 Downloading from private repository using auto-detected token..."
-    
+    puts "🔍 Downloading from private repository..."
     download_and_extract_repo(github_token)
     
     puts "✅ Building kdiff..."
@@ -56,41 +53,48 @@ class Kdiff < Formula
     
     begin
       token = `git config --get github.token 2>/dev/null`.strip
-      return token unless token.empty?
+      return token if $?.exitstatus == 0 && !token.empty?
     rescue
     end
     
-    begin
-      cred_output = `printf "protocol=https\nhost=github.com\n\n" | git credential fill 2>/dev/null`
-      if match = cred_output.match(/password=(.+)/)
-        token = match[1].strip
-        return token unless token.empty?
+    if RUBY_PLATFORM.include?("darwin")
+      begin
+        keychain_output = `security find-internet-password -s github.com -w 2>/dev/null`.strip
+        return keychain_output if $?.exitstatus == 0 && !keychain_output.empty?
+      rescue
       end
-    rescue
     end
     
     nil
   end
   
   def download_and_extract_repo(token)
-    if system("which gh > /dev/null 2>&1")
+    if system("which gh >/dev/null 2>&1")
+      puts "  • Trying gh CLI..."
       success = system("gh", "api", "/repos/bucketplace/sre/tarball/v#{version}",
-                      "--jq", ".", "-o", "sre.tar.gz")
+                      "--jq", ".", "-o", "sre.tar.gz", 
+                      "2>/dev/null")
       
       if success && File.exist?("sre.tar.gz") && File.size("sre.tar.gz") > 0
+        puts "  • Downloaded via gh CLI"
         system "tar", "-xzf", "sre.tar.gz", "--strip-components=1"
         return
       end
     end
     
+    puts "  • Trying curl with token..."
     success = system("curl", "-L", "-H", "Authorization: token #{token}",
                     "https://api.github.com/repos/bucketplace/sre/tarball/v#{version}",
                     "-o", "sre.tar.gz", "-f", "-s")
     
     unless success && File.exist?("sre.tar.gz") && File.size("sre.tar.gz") > 0
-      odie "❌ Failed to download repository. Check your GitHub access permissions."
+      odie "❌ Failed to download repository. Please check:\n" \
+           "  • Your GitHub token has 'repo' scope\n" \
+           "  • You have access to bucketplace/sre repository\n" \
+           "  • Token: #{token[0..7]}..."
     end
     
+    puts "  • Downloaded via curl"
     system "tar", "-xzf", "sre.tar.gz", "--strip-components=1"
   end
   
