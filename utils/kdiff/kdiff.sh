@@ -12,6 +12,9 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+GRAY='\033[0;37m'
+BOLD='\033[1m'
 NC='\033[0m' # No Color
 
 # Load library modules
@@ -20,6 +23,7 @@ source "$SCRIPT_DIR/lib/deployment.sh"
 source "$SCRIPT_DIR/lib/serviceaccount.sh"
 source "$SCRIPT_DIR/lib/emissary.sh"
 source "$SCRIPT_DIR/lib/contour.sh"
+source "$SCRIPT_DIR/lib/mirror.sh"
 
 # Utility functions
 print_usage() {
@@ -37,6 +41,8 @@ Commands:
     sa            Compare ServiceAccounts with AWS IAM roles
     emissary      Compare Emissary Mappings (name/host/prefix)
     contour       Compare Contour HTTPProxies (name/fqdn)
+    mirror        Analyze service mirror setup between clusters
+    mirror create [service-name]  Create mirror services in backend cluster
 
 Examples:
     kdiff frontend-prod backend-prod    # Set clusters
@@ -44,6 +50,9 @@ Examples:
     kdiff sa                            # Compare ServiceAccounts with IAM roles
     kdiff emissary                      # Compare Emissary Mappings
     kdiff contour                       # Compare Contour HTTPProxies
+    kdiff mirror                        # Analyze mirror services
+    kdiff mirror create                 # Create all missing mirror services
+    kdiff mirror create ohouse-id-gen   # Create mirror only for specific service
 EOF
 }
 
@@ -65,13 +74,24 @@ main() {
         "contour"|"httpproxy")
             compare_contour
             ;;
+        "mirror"|"all")
+            if [[ "${2:-}" == "create" ]]; then
+                if [[ -n "${3:-}" ]]; then
+                    create_mirror "$3"
+                else
+                    create_mirror
+                fi
+            else
+                compare_mirror
+            fi
+            ;;
         "")
             if load_cluster_config; then
                 echo -e "${GREEN}Current configuration:${NC}"
                 echo "Frontend: $FRONTEND_CLUSTER"
                 echo "Backend:  $BACKEND_CLUSTER"
                 echo
-                echo "Available commands: deployment, sa, emissary, contour"
+                echo "Available commands: deployment, sa, emissary, contour, mirror, mirror create"
                 echo "Use 'kdiff help' for more information"
             else
                 prompt_cluster_setup
@@ -90,7 +110,7 @@ main() {
                     echo "Frontend: $frontend_cluster"
                     echo "Backend:  $backend_cluster"
                     echo
-                    echo "Now you can use: kdiff deployment, kdiff sa, kdiff emissary, kdiff contour"
+                    echo "Now you can use: kdiff deployment, kdiff sa, kdiff emissary, kdiff contour, kdiff mirror, kdiff mirror create"
                 else
                     echo -e "${RED}✗ One or both cluster contexts not found${NC}"
                     echo "Available contexts:"
