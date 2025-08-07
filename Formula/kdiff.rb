@@ -1,7 +1,7 @@
 class Kdiff < Formula
   desc "Kubernetes diff tool for comparing deployments and configurations"
   homepage "https://github.com/bucketplace/homebrew-sre"
-  url "https://github.com/bucketplace/homebrew-sre/archive/refs/tags/v0.0.2.tar.gz"
+  url "https://github.com/bucketplace/homebrew-sre/archive/refs/tags/v0.0.3.tar.gz"
   
   def install
     cd "utils/kdiff" do

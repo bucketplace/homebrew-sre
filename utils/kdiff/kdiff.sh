@@ -24,6 +24,7 @@ source "$SCRIPT_DIR/lib/serviceaccount.sh"
 source "$SCRIPT_DIR/lib/emissary.sh"
 source "$SCRIPT_DIR/lib/contour.sh"
 source "$SCRIPT_DIR/lib/mirror.sh"
+source "$SCRIPT_DIR/lib/endpoint.sh"
 
 # Utility functions
 print_usage() {
@@ -43,6 +44,7 @@ Commands:
     contour       Compare Contour HTTPProxies (name/fqdn)
     mirror        Analyze service mirror setup between clusters
     mirror create [service-name]  Create mirror services in backend cluster
+    endpoint      Analyze ingress endpoints (DNS resolution)
 
 Examples:
     kdiff frontend-prod backend-prod    # Set clusters
@@ -53,6 +55,7 @@ Examples:
     kdiff mirror                        # Analyze mirror services
     kdiff mirror create                 # Create all missing mirror services
     kdiff mirror create ohouse-id-gen   # Create mirror only for specific service
+    kdiff endpoint                      # Analyze ingress endpoints with DNS resolution
 EOF
 }
 
@@ -85,13 +88,16 @@ main() {
                 compare_mirror
             fi
             ;;
+        "endpoint")
+            compare_endpoints
+            ;;
         "")
             if load_cluster_config; then
                 echo -e "${GREEN}Current configuration:${NC}"
                 echo "Frontend: $FRONTEND_CLUSTER"
                 echo "Backend:  $BACKEND_CLUSTER"
                 echo
-                echo "Available commands: deployment, sa, emissary, contour, mirror, mirror create"
+                echo "Available commands: deployment, sa, emissary, contour, mirror, mirror create, endpoint"
                 echo "Use 'kdiff help' for more information"
             else
                 prompt_cluster_setup
@@ -110,7 +116,7 @@ main() {
                     echo "Frontend: $frontend_cluster"
                     echo "Backend:  $backend_cluster"
                     echo
-                    echo "Now you can use: kdiff deployment, kdiff sa, kdiff emissary, kdiff contour, kdiff mirror, kdiff mirror create"
+                    echo "Now you can use: kdiff deployment, kdiff sa, kdiff emissary, kdiff contour, kdiff mirror, kdiff mirror create, kdiff endpoint"
                 else
                     echo -e "${RED}✗ One or both cluster contexts not found${NC}"
                     echo "Available contexts:"
