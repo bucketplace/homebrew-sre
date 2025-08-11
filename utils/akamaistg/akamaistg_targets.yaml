@@ -1,0 +1,42 @@
+# akamaistg targets (YAML)
+#
+# 구조:
+# hosts:
+#   <host>:
+#     - /path1
+#     - /path2
+#   <another-host>:
+#     - /
+#     - /health
+#
+# 주석과 빈 줄은 무시됩니다.
+
+hosts:
+  ### Prod ###
+  # ohousecdn.com
+  prs.ohousecdn.com:
+    - /apne1/global/exhibitions/contents/v1-347840806314048.jpg
+    - /apne2/commerce/uploads/banners/home_banner/v1-401536418406464.jpg
+  image.ohousecdn.com:
+    - /i/bucketplace-v2-development/uploads/productions/166305532397227028.jpg?w=100
+  # ohouse.com
+  image.ohouse.com:
+    - /oh-image-us-east-1/uploads/000127e9-7940-49d4-ae52-4124d457e898-1.jpeg
+  video.ohouse.com:
+    - /oh-s3-video-use1-prod-encoded/6409a52cc97f3c0a0aa62b11/6409a52cc97f3c0a0aa62b11_1080_00001.ts
+  # ohou.se
+  prs.ohou.se:
+    - /apne2/any/uploads/customizable-card/main-image/v1-347042840399872.png
+  image.ohou.se:
+    - /i/bucketplace-v2-development/uploads/productions/160610605326491220.jpg
+  raw.ohou.se:
+    - /assets/163126071670430281.mp4
+  video.ohou.se:
+    - /6093ccf4d4795d70246b1600/6093ccf4d4795d70246b1600_1080_00001.ts
+  ### dev/qa ###
+  qa-prs.ohouse.com:
+    - /apne2/content/uploads/cards/project/v1-346823828561984.jpg?w=256&h=171&c=c
+  qa-video.ohou.se:
+    - /oh-s3-video-qa-encoded/643d171ea65f257beb8d1937/643d171ea65f257beb8d1937_1080_00001.ts
+
+
