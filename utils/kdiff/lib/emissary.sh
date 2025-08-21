@@ -16,9 +16,9 @@ compare_emissary() {
     # Get Emissary Mappings from both clusters
     echo "Fetching Emissary Mappings..."
     
-    local frontend_mappings=$(kubectl --context="$FRONTEND_CLUSTER" get mappings -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.spec.host}{"\t"}{.spec.prefix}{"\n"}{end}' 2>/dev/null | sort)
+    local frontend_mappings=$(kubectl --context="$FRONTEND_CLUSTER" get mappings -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.spec.host}{"\t"}{.spec.prefix}{"\t"}{.spec.ambassador_id}{"\n"}{end}' 2>/dev/null | sort)
     
-    local backend_mappings=$(kubectl --context="$BACKEND_CLUSTER" get mappings -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.spec.host}{"\t"}{.spec.prefix}{"\n"}{end}' 2>/dev/null | sort)
+    local backend_mappings=$(kubectl --context="$BACKEND_CLUSTER" get mappings -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.spec.host}{"\t"}{.spec.prefix}{"\t"}{.spec.ambassador_id}{"\n"}{end}' 2>/dev/null | sort)
     
     if [[ -z "$frontend_mappings" && -z "$backend_mappings" ]]; then
         echo -e "${YELLOW}⚠️  No Emissary Mappings found in either cluster${NC}"
@@ -33,10 +33,10 @@ compare_emissary() {
     local frontend_count=$(echo "$frontend_mappings" | grep -c '^' 2>/dev/null || echo "0")
     if [[ -n "$frontend_mappings" && "$frontend_count" -gt 0 ]]; then
         echo -e "${GREEN}🌐 Frontend Cluster Mappings (${frontend_count}):${NC}"
-        printf "%-20s %-30s %-40s %s\n" "NAMESPACE" "MAPPING_NAME" "HOST" "PREFIX"
-        printf "%-20s %-30s %-40s %s\n" "---------" "------------" "----" "------"
-        echo "$frontend_mappings" | while IFS=$'\t' read -r namespace name host prefix; do
-            [[ -n "$namespace" ]] && printf "%-20s %-30s %-40s %s\n" "$namespace" "$name" "${host:-<none>}" "${prefix:-<none>}"
+        printf "%-20s %-30s %-40s %-20s %s\n" "NAMESPACE" "MAPPING_NAME" "HOST" "PREFIX" "AMBASSADOR_ID"
+        printf "%-20s %-30s %-40s %-20s %s\n" "---------" "------------" "----" "------" "-------------"
+        echo "$frontend_mappings" | while IFS=$'\t' read -r namespace name host prefix ambassador_id; do
+            [[ -n "$namespace" ]] && printf "%-20s %-30s %-40s %-20s %s\n" "$namespace" "$name" "${host:-<none>}" "${prefix:-<none>}" "${ambassador_id:-<none>}"
         done
         echo
     else
@@ -48,10 +48,10 @@ compare_emissary() {
     local backend_count=$(echo "$backend_mappings" | grep -c '^' 2>/dev/null || echo "0")
     if [[ -n "$backend_mappings" && "$backend_count" -gt 0 ]]; then
         echo -e "${GREEN}🌐 Backend Cluster Mappings (${backend_count}):${NC}"
-        printf "%-20s %-30s %-40s %s\n" "NAMESPACE" "MAPPING_NAME" "HOST" "PREFIX"
-        printf "%-20s %-30s %-40s %s\n" "---------" "------------" "----" "------"
-        echo "$backend_mappings" | while IFS=$'\t' read -r namespace name host prefix; do
-            [[ -n "$namespace" ]] && printf "%-20s %-30s %-40s %s\n" "$namespace" "$name" "${host:-<none>}" "${prefix:-<none>}"
+        printf "%-20s %-30s %-40s %-20s %s\n" "NAMESPACE" "MAPPING_NAME" "HOST" "PREFIX" "AMBASSADOR_ID"
+        printf "%-20s %-30s %-40s %-20s %s\n" "---------" "------------" "----" "------" "-------------"
+        echo "$backend_mappings" | while IFS=$'\t' read -r namespace name host prefix ambassador_id; do
+            [[ -n "$namespace" ]] && printf "%-20s %-30s %-40s %-20s %s\n" "$namespace" "$name" "${host:-<none>}" "${prefix:-<none>}" "${ambassador_id:-<none>}"
         done
         echo
     else
@@ -87,9 +87,10 @@ compare_emissary() {
                     local mapping_details=$(echo "$frontend_mappings" | grep "^$namespace\t$name\t" | head -1)
                     local host=$(echo "$mapping_details" | cut -f3)
                     local prefix=$(echo "$mapping_details" | cut -f4)
+                    local ambassador_id=$(echo "$mapping_details" | cut -f5)
                     
                     echo -e "  - ${RED}$line${NC}"
-                    echo -e "    Host: ${host:-<none>}, Prefix: ${prefix:-<none>}"
+                    echo -e "    Host: ${host:-<none>}, Prefix: ${prefix:-<none>}, Ambassador ID: ${ambassador_id:-<none>}"
                 fi
             done
             echo
