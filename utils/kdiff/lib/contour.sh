@@ -16,11 +16,13 @@ compare_contour() {
     # Get Contour HTTPProxies from both clusters
     echo "Fetching Contour HTTPProxies..."
     
-    local frontend_proxies=$(kubectl --context="$FRONTEND_CLUSTER" get httpproxies -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.spec.virtualhost.fqdn}{"\n"}{end}' 2>/dev/null | sort)
+    local frontend_proxies
+    frontend_proxies=$(kubectl --context="$FRONTEND_CLUSTER" get httpproxies -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.spec.virtualhost.fqdn}{"\t"}{.spec.ingressClassName}{"\n"}{end}' 2>/dev/null | sort)
     
-    local backend_proxies=$(kubectl --context="$BACKEND_CLUSTER" get httpproxies -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.spec.virtualhost.fqdn}{"\n"}{end}' 2>/dev/null | sort)
+    local backend_proxies
+    backend_proxies=$(kubectl --context="$BACKEND_CLUSTER" get httpproxies -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.spec.virtualhost.fqdn}{"\t"}{.spec.ingressClassName}{"\n"}{end}' 2>/dev/null | sort)
     
-    if [[ -z "$frontend_proxies" && -z "$backend_proxies" ]]; then
+    if [ -z "$frontend_proxies" ] && [ -z "$backend_proxies" ]; then
         echo -e "${YELLOW}⚠️  No Contour HTTPProxies found in either cluster${NC}"
         return 0
     fi
@@ -30,13 +32,14 @@ compare_contour() {
     echo
     
     # Frontend HTTPProxies
-    local frontend_count=$(echo "$frontend_proxies" | grep -c '^' 2>/dev/null || echo "0")
-    if [[ -n "$frontend_proxies" && "$frontend_count" -gt 0 ]]; then
+    local frontend_count
+    frontend_count=$(echo "$frontend_proxies" | grep -c '^' 2>/dev/null || echo "0")
+    if [ -n "$frontend_proxies" ] && [ "$frontend_count" -gt 0 ]; then
         echo -e "${GREEN}🔗 Frontend Cluster HTTPProxies (${frontend_count}):${NC}"
-        printf "%-20s %-40s %s\n" "NAMESPACE" "HTTPPROXY_NAME" "FQDN"
-        printf "%-20s %-40s %s\n" "---------" "--------------" "----"
-        echo "$frontend_proxies" | while IFS=$'\t' read -r namespace name fqdn; do
-            [[ -n "$namespace" ]] && printf "%-20s %-40s %s\n" "$namespace" "$name" "${fqdn:-<none>}"
+        printf "%-20s %-30s %-40s %s\n" "NAMESPACE" "HTTPPROXY_NAME" "FQDN" "INGRESS_CLASS"
+        printf "%-20s %-30s %-40s %s\n" "---------" "--------------" "----" "-------------"
+        echo "$frontend_proxies" | while IFS=$'\t' read -r namespace name fqdn ingressClassName; do
+            [ -n "$namespace" ] && printf "%-20s %-30s %-40s %s\n" "$namespace" "$name" "${fqdn:-<none>}" "${ingressClassName:-<none>}"
         done
         echo
     else
@@ -45,13 +48,14 @@ compare_contour() {
     fi
     
     # Backend HTTPProxies
-    local backend_count=$(echo "$backend_proxies" | grep -c '^' 2>/dev/null || echo "0")
-    if [[ -n "$backend_proxies" && "$backend_count" -gt 0 ]]; then
+    local backend_count
+    backend_count=$(echo "$backend_proxies" | grep -c '^' 2>/dev/null || echo "0")
+    if [ -n "$backend_proxies" ] && [ "$backend_count" -gt 0 ]; then
         echo -e "${GREEN}🔗 Backend Cluster HTTPProxies (${backend_count}):${NC}"
-        printf "%-20s %-40s %s\n" "NAMESPACE" "HTTPPROXY_NAME" "FQDN"
-        printf "%-20s %-40s %s\n" "---------" "--------------" "----"
-        echo "$backend_proxies" | while IFS=$'\t' read -r namespace name fqdn; do
-            [[ -n "$namespace" ]] && printf "%-20s %-40s %s\n" "$namespace" "$name" "${fqdn:-<none>}"
+        printf "%-20s %-30s %-40s %s\n" "NAMESPACE" "HTTPPROXY_NAME" "FQDN" "INGRESS_CLASS"
+        printf "%-20s %-30s %-40s %s\n" "---------" "--------------" "----" "-------------"
+        echo "$backend_proxies" | while IFS=$'\t' read -r namespace name fqdn ingressClassName; do
+            [ -n "$namespace" ] && printf "%-20s %-30s %-40s %s\n" "$namespace" "$name" "${fqdn:-<none>}" "${ingressClassName:-<none>}"
         done
         echo
     else
@@ -60,43 +64,58 @@ compare_contour() {
     fi
     
     # Comparison analysis if both clusters have proxies
-    if [[ "$frontend_count" -gt 0 || "$backend_count" -gt 0 ]]; then
+    if [ "$frontend_count" -gt 0 ] || [ "$backend_count" -gt 0 ]; then
         # Create temporary files for comparison
-        local temp_frontend=$(mktemp)
-        local temp_backend=$(mktemp)
+        local temp_frontend
+        local temp_backend
+        temp_frontend=$(mktemp)
+        temp_backend=$(mktemp)
         
-        # Create comparable format (namespace:name)
-        echo "$frontend_proxies" | awk -F'\t' '{if(NF>=2) print $1":"$2}' | sort > "$temp_frontend"
-        echo "$backend_proxies" | awk -F'\t' '{if(NF>=2) print $1":"$2}' | sort > "$temp_backend"
+        # Create comparable format (namespace:name) using simple awk
+        echo "$frontend_proxies" | awk -F$'\t' 'NF>=2 {print $1":"$2}' | sort > "$temp_frontend"
+        echo "$backend_proxies" | awk -F$'\t' 'NF>=2 {print $1":"$2}' | sort > "$temp_backend"
         
         # Find differences
-        local frontend_only=$(comm -23 "$temp_frontend" "$temp_backend")
-        local backend_only=$(comm -13 "$temp_frontend" "$temp_backend")
-        local common=$(comm -12 "$temp_frontend" "$temp_backend")
+        local frontend_only
+        local backend_only
+        local common
+        frontend_only=$(comm -23 "$temp_frontend" "$temp_backend")
+        backend_only=$(comm -13 "$temp_frontend" "$temp_backend")
+        common=$(comm -12 "$temp_frontend" "$temp_backend")
         
-        local frontend_only_count=$(echo "$frontend_only" | grep -c '^' 2>/dev/null || echo "0")
-        local backend_only_count=$(echo "$backend_only" | grep -c '^' 2>/dev/null || echo "0")
-        local common_count=$(echo "$common" | grep -c '^' 2>/dev/null || echo "0")
+        local frontend_only_count
+        local backend_only_count
+        local common_count
+        frontend_only_count=$(echo "$frontend_only" | grep -c '^' 2>/dev/null || echo "0")
+        backend_only_count=$(echo "$backend_only" | grep -c '^' 2>/dev/null || echo "0")
+        common_count=$(echo "$common" | grep -c '^' 2>/dev/null || echo "0")
         
         echo -e "${BLUE}🔍 Analysis:${NC}"
         
-        if [[ "$frontend_only_count" -gt 0 ]]; then
+        if [ "$frontend_only_count" -gt 0 ]; then
             echo -e "${RED}🚨 Missing in Backend cluster (${frontend_only_count} HTTPProxies):${NC}"
-            echo "$frontend_only" | while read line; do
-                if [[ -n "$line" ]]; then
-                    local namespace=$(echo "$line" | cut -d: -f1)
-                    local name=$(echo "$line" | cut -d: -f2)
-                    local proxy_details=$(echo "$frontend_proxies" | grep "^$namespace\t$name\t" | head -1)
-                    local fqdn=$(echo "$proxy_details" | cut -f3)
+            echo "$frontend_only" | while read -r line; do
+                if [ -n "$line" ]; then
+                    local namespace
+                    local name
+                    namespace=$(echo "$line" | cut -d: -f1)
+                    name=$(echo "$line" | cut -d: -f2)
+                    local proxy_details
+                    proxy_details=$(echo "$frontend_proxies" | grep "^$namespace\t$name\t" | head -1)
+                    local fqdn
+                    local ingressClassName
+                    fqdn=$(echo "$proxy_details" | cut -f3)
+                    ingressClassName=$(echo "$proxy_details" | cut -f4)
                     
                     echo -e "  - ${RED}$line${NC}"
                     echo -e "    FQDN: ${fqdn:-<none>}"
+                    echo -e "    IngressClass: ${ingressClassName:-<none>}"
                 fi
             done
             echo
         fi
         
-        if [[ "$common_count" -gt 0 ]]; then
+        if [ "$common_count" -gt 0 ]; then
             echo -e "${GREEN}✅ Common HTTPProxies: ${common_count}${NC}"
             echo
         fi
