@@ -1,7 +1,7 @@
-class As < Formula
+class AS < Formula
     desc "Akamai Staging IP Management"
     homepage "https://github.com/bucketplace/homebrew-sre"
-    url "https://github.com/bucketplace/homebrew-sre/archive/refs/tags/v0.0.7.tar.gz"
+    url "https://github.com/bucketplace/homebrew-sre/archive/refs/tags/v0.0.8.tar.gz"
     
     def install
       cd "utils/a-s" do
