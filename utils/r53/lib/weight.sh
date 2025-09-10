@@ -25,6 +25,89 @@ load_records() {
 weight_manager() {
     local records_file="$TEMP_DIR/records.json"
     
+    local filter_options=("Show all weighted records" "Search by name pattern")
+    local filter_descriptions=(
+        "Display all weighted DNS records"
+        "Search weighted records by name pattern"
+    )
+    
+    local total=${#filter_options[@]}
+    local selected=0
+    
+    echo -e "${BLUE}Weight Filter Options (up/down arrows, Enter to select):${NC}"
+    echo ""
+    
+    printf "\033[?25l"
+    
+    draw_filter_menu() {
+        for i in "${!filter_options[@]}"; do
+            if [[ $i -eq $selected ]]; then
+                echo -e "${GREEN}> ${filter_options[i]}${NC} - ${filter_descriptions[i]}"
+            else
+                echo -e "  ${filter_options[i]} - ${filter_descriptions[i]}"
+            fi
+        done
+    }
+    
+    draw_filter_menu
+    
+    while true; do
+        read -rsn1 key
+        
+        case "$key" in
+            $'\033')
+                read -rsn2 key
+                case "$key" in
+                    '[A')
+                        if [[ $selected -gt 0 ]]; then
+                            selected=$((selected - 1))
+                            tput cuu $total
+                            draw_filter_menu
+                        fi
+                        ;;
+                    '[B')
+                        if [[ $selected -lt $((total - 1)) ]]; then
+                            selected=$((selected + 1))
+                            tput cuu $total
+                            draw_filter_menu
+                        fi
+                        ;;
+                esac
+                ;;
+            '')
+                printf "\033[?25h"
+                tput cuu $total
+                for i in $(seq 1 $((total + 3))); do
+                    tput el
+                    echo ""
+                done
+                tput cuu $((total + 3))
+                
+                local chosen_filter="${filter_options[selected]}"
+                echo -e "${GREEN}Selected: ${chosen_filter}${NC}"
+                echo ""
+                
+                local search_filter=""
+                
+                case "$chosen_filter" in
+                    "Search by name pattern")
+                        read -p "Enter name pattern to search: " search_filter
+                        ;;
+                esac
+                
+                break
+                ;;
+            'q'|'Q')
+                printf "\033[?25h"
+                echo ""
+                echo "Goodbye!"
+                return 0
+                ;;
+        esac
+    done
+    
+    echo ""
+    
     local records_data
     records_data=$(jq -r '.ResourceRecordSets[] | select(.SetIdentifier != null) | 
         [(.Name // ""), (.Type // ""), (.SetIdentifier // ""), (.Weight // 0), 
@@ -38,11 +121,23 @@ weight_manager() {
     
     local -a records_display
     local -a records_data_raw
+    
     while IFS=$'\t' read -r name type set_id weight value; do
+        if [[ -n "$search_filter" ]]; then
+            if [[ "$name" != *"$search_filter"* ]]; then
+                continue
+            fi
+        fi
+        
         local display_name=$(echo "$name" | sed 's/\\052/*/g')
         records_display+=("${display_name%%.} (${type}) - ${set_id} [Weight: ${weight}] -> ${value}")
         records_data_raw+=("$name|$type|$set_id|$weight")
     done <<< "$records_data"
+    
+    if [[ ${#records_display[@]} -eq 0 ]]; then
+        echo -e "${RED}No weighted records found matching the criteria${NC}"
+        return 1
+    fi
     
     local total=${#records_display[@]}
     local selected=0
