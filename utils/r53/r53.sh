@@ -47,7 +47,7 @@ show_config() {
         echo "Hosted Zone: $HOSTED_ZONE_ID"
         echo "AWS Profile: $PROFILE"
         echo ""
-        echo "Available commands: weight"
+        echo "Available commands: weight, policy"
         echo "Use 'r53 help' for more information"
     else
         echo -e "${YELLOW}No configuration found${NC}"

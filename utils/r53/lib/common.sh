@@ -92,7 +92,7 @@ configure_r53() {
         echo "Hosted Zone: $hosted_zone_id"
         echo "AWS Profile: $profile"
         echo ""
-        echo "Now you can use: r53 weight, r53 type"
+        echo "Now you can use: r53 weight, r53 policy"
     else
         echo -e "${RED}✗ Usage: r53 config <hosted-zone-id> <aws-profile>${NC}"
         echo ""
