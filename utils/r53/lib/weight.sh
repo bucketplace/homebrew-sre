@@ -1,5 +1,13 @@
 #!/bin/bash
 
+
+if [[ -z "$TEMP_DIR" ]]; then
+    TEMP_DIR="./temp"
+fi
+
+
+mkdir -p "$TEMP_DIR"
+
 load_records() {
     local records_file="$TEMP_DIR/records.json"
     
@@ -192,50 +200,18 @@ restart_weight_manager() {
 }
 
 manage_weights() {
-    if [[ -n "${1:-}" && -n "${2:-}" ]]; then
-        local hosted_zone_id="$1"
-        local profile="$2"
-        
-        if ! validate_profile "$profile"; then
-            echo -e "${RED}✗ AWS profile '$profile' not found${NC}"
-            echo "Available profiles:"
-            aws configure list-profiles 2>/dev/null || echo "No profiles configured"
-            exit 1
-        fi
-        
-        if ! validate_hosted_zone "$hosted_zone_id" "$profile"; then
-            echo -e "${RED}✗ Hosted zone '$hosted_zone_id' not accessible with profile '$profile'${NC}"
-            echo "Please check the hosted zone ID and AWS permissions"
-            exit 1
-        fi
-        
-        save_config "$hosted_zone_id" "$profile"
-        
-        HOSTED_ZONE_ID="$hosted_zone_id"
-        PROFILE="$profile"
-        
-        echo -e "${GREEN}✓ Configuration saved${NC}"
-        echo "Hosted Zone: $hosted_zone_id"
-        echo "AWS Profile: $profile"
-        echo ""
-        
-    else
-        if ! load_config; then
-            echo -e "${RED}✗ No configuration found${NC}"
-            echo "Usage: r53 weight <hosted-zone-id> <aws-profile>"
-            exit 1
-        fi
-        
-        echo -e "${GREEN}Using saved configuration:${NC}"
-        echo "Hosted Zone: $HOSTED_ZONE_ID"
-        echo "AWS Profile: $PROFILE"
-        echo ""
+    if ! load_config; then
+        echo -e "${RED}✗ No configuration found${NC}"
+        echo "Please run 'r53 config <hosted-zone-id> <aws-profile>' to configure first"
+        exit 1
     fi
     
     check_dependencies
     
     echo -e "${BLUE}Route 53 Weight Manager${NC}"
     echo -e "${BLUE}=======================${NC}"
+    echo "Hosted Zone: $HOSTED_ZONE_ID"
+    echo "AWS Profile: $PROFILE"
     echo ""
     
     load_records

@@ -17,29 +17,27 @@ NC='\033[0m'
 
 source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/weight.sh"
+source "$SCRIPT_DIR/lib/policy.sh"
 
 print_usage() {
     cat << EOF
 r53 - Route 53 Management Tool
 
 Usage:
-    r53 weight <hosted-zone-id> <aws-profile>    # Configure and start weight manager
+    r53 config <hosted-zone-id> <aws-profile>    # Configure and start weight manager
+    r53 policy                                   # Configure and start policy manager
     r53 weight                                   # Use previously configured settings
     r53 help                                     # Show this help
 
 Commands:
     weight    Interactive weight management for weighted routing records
+    policy      Interactive policy management for routing policy records
 
 Examples:
-    r53 weight Z055328915GXZSE19W5LF ohouse-dev    # Configure and start
+    r53 config Z055328915GXZSE19W5LF ohouse-dev    # Configure and start
     r53 weight                                     # Use saved configuration
+    r53 policy                                       # Use saved configuration
 
-Features:
-    • Interactive record selection with arrow keys
-    • Shows current values (IP addresses, CNAMEs) 
-    • Real-time weight changes applied to AWS Route 53
-    • Automatic record refresh after changes
-    • Continuous workflow for multiple changes
 EOF
 }
 
@@ -53,7 +51,7 @@ show_config() {
         echo "Use 'r53 help' for more information"
     else
         echo -e "${YELLOW}No configuration found${NC}"
-        echo "Use 'r53 weight <hosted-zone-id> <aws-profile>' to configure"
+        echo "Use 'r53 config <hosted-zone-id> <aws-profile>' to configure"
     fi
 }
 
@@ -62,8 +60,14 @@ main() {
         "help"|"-h"|"--help")
             print_usage
             ;;
+        "config")
+            configure_r53 "${@:2}"
+            ;;
         "weight")
             manage_weights "${@:2}"
+            ;;
+        "policy")
+            manage_policies "${@:2}"
             ;;
         "")
             show_config
