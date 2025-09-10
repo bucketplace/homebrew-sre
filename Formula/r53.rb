@@ -1,7 +1,7 @@
 class R53 < Formula
   desc "AWS Route 53 Management Tool"
   homepage "https://github.com/bucketplace/homebrew-sre"
-  url "https://github.com/bucketplace/homebrew-sre/archive/refs/tags/v0.0.10.tar.gz"
+  url "https://github.com/bucketplace/homebrew-sre/archive/refs/tags/v0.0.11.tar.gz"
   
   def install
     cd "utils/r53" do
