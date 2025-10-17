@@ -15,12 +15,24 @@ compare_contour() {
     
     # Get Contour HTTPProxies from both clusters
     echo "Fetching Contour HTTPProxies..."
-    
+
     local frontend_proxies
-    frontend_proxies=$(kubectl --context="$FRONTEND_CLUSTER" get httpproxies -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.spec.virtualhost.fqdn}{"\t"}{.spec.ingressClassName}{"\n"}{end}' 2>/dev/null | sort)
-    
+    frontend_proxies=$(kubectl --context="$FRONTEND_CLUSTER" get httpproxies -A -o json 2>/dev/null | \
+        jq -r '.items[] |
+        .metadata.namespace + "\t" +
+        .metadata.name + "\t" +
+        (.spec.virtualhost.fqdn // "<none>") + "\t" +
+        (.spec.ingressClassName // "<none>") + "\t" +
+        ([.spec.routes[]?.conditions[]?.prefix // empty] | join(",") | if . == "" then "<none>" else . end)' | sort)
+
     local backend_proxies
-    backend_proxies=$(kubectl --context="$BACKEND_CLUSTER" get httpproxies -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.spec.virtualhost.fqdn}{"\t"}{.spec.ingressClassName}{"\n"}{end}' 2>/dev/null | sort)
+    backend_proxies=$(kubectl --context="$BACKEND_CLUSTER" get httpproxies -A -o json 2>/dev/null | \
+        jq -r '.items[] |
+        .metadata.namespace + "\t" +
+        .metadata.name + "\t" +
+        (.spec.virtualhost.fqdn // "<none>") + "\t" +
+        (.spec.ingressClassName // "<none>") + "\t" +
+        ([.spec.routes[]?.conditions[]?.prefix // empty] | join(",") | if . == "" then "<none>" else . end)' | sort)
     
     if [ -z "$frontend_proxies" ] && [ -z "$backend_proxies" ]; then
         echo -e "${YELLOW}⚠️  No Contour HTTPProxies found in either cluster${NC}"
@@ -36,10 +48,10 @@ compare_contour() {
     frontend_count=$(echo "$frontend_proxies" | grep -c '^' 2>/dev/null || echo "0")
     if [ -n "$frontend_proxies" ] && [ "$frontend_count" -gt 0 ]; then
         echo -e "${GREEN}🔗 Frontend Cluster HTTPProxies (${frontend_count}):${NC}"
-        printf "%-20s %-30s %-40s %s\n" "NAMESPACE" "HTTPPROXY_NAME" "FQDN" "INGRESS_CLASS"
-        printf "%-20s %-30s %-40s %s\n" "---------" "--------------" "----" "-------------"
-        echo "$frontend_proxies" | while IFS=$'\t' read -r namespace name fqdn ingressClassName; do
-            [ -n "$namespace" ] && printf "%-20s %-30s %-40s %s\n" "$namespace" "$name" "${fqdn:-<none>}" "${ingressClassName:-<none>}"
+        printf "%-20s %-30s %-40s %-15s %s\n" "NAMESPACE" "HTTPPROXY_NAME" "FQDN" "INGRESS_CLASS" "PREFIX"
+        printf "%-20s %-30s %-40s %-15s %s\n" "---------" "--------------" "----" "-------------" "------"
+        echo "$frontend_proxies" | while IFS=$'\t' read -r namespace name fqdn ingressClassName prefix; do
+            [ -n "$namespace" ] && printf "%-20s %-30s %-40s %-15s %s\n" "$namespace" "$name" "${fqdn:-<none>}" "${ingressClassName:-<none>}" "${prefix:-<none>}"
         done
         echo
     else
@@ -52,10 +64,10 @@ compare_contour() {
     backend_count=$(echo "$backend_proxies" | grep -c '^' 2>/dev/null || echo "0")
     if [ -n "$backend_proxies" ] && [ "$backend_count" -gt 0 ]; then
         echo -e "${GREEN}🔗 Backend Cluster HTTPProxies (${backend_count}):${NC}"
-        printf "%-20s %-30s %-40s %s\n" "NAMESPACE" "HTTPPROXY_NAME" "FQDN" "INGRESS_CLASS"
-        printf "%-20s %-30s %-40s %s\n" "---------" "--------------" "----" "-------------"
-        echo "$backend_proxies" | while IFS=$'\t' read -r namespace name fqdn ingressClassName; do
-            [ -n "$namespace" ] && printf "%-20s %-30s %-40s %s\n" "$namespace" "$name" "${fqdn:-<none>}" "${ingressClassName:-<none>}"
+        printf "%-20s %-30s %-40s %-15s %s\n" "NAMESPACE" "HTTPPROXY_NAME" "FQDN" "INGRESS_CLASS" "PREFIX"
+        printf "%-20s %-30s %-40s %-15s %s\n" "---------" "--------------" "----" "-------------" "------"
+        echo "$backend_proxies" | while IFS=$'\t' read -r namespace name fqdn ingressClassName prefix; do
+            [ -n "$namespace" ] && printf "%-20s %-30s %-40s %-15s %s\n" "$namespace" "$name" "${fqdn:-<none>}" "${ingressClassName:-<none>}" "${prefix:-<none>}"
         done
         echo
     else
@@ -104,12 +116,15 @@ compare_contour() {
                     proxy_details=$(echo "$frontend_proxies" | grep "^$namespace\t$name\t" | head -1)
                     local fqdn
                     local ingressClassName
+                    local prefix
                     fqdn=$(echo "$proxy_details" | cut -f3)
                     ingressClassName=$(echo "$proxy_details" | cut -f4)
-                    
+                    prefix=$(echo "$proxy_details" | cut -f5)
+
                     echo -e "  - ${RED}$line${NC}"
                     echo -e "    FQDN: ${fqdn:-<none>}"
                     echo -e "    IngressClass: ${ingressClassName:-<none>}"
+                    echo -e "    Prefix: ${prefix:-<none>}"
                 fi
             done
             echo
